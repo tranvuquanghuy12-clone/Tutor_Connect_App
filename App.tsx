@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Tutor, ViewState, Booking, BookingStatus, UserProfile } from './types';
+import React, { useState, useEffect } from 'react';
+import { Tutor, ViewState, Booking, BookingStatus, UserProfile, SchoolScheduleItem } from './types';
 import { MOCK_TUTORS } from './services/mockData';
 import TutorCard from './components/TutorCard';
 import BookingModal from './components/BookingModal';
@@ -7,43 +7,91 @@ import ChatBot from './components/ChatBot';
 import AuthScreen from './components/AuthScreen';
 import ActivityList from './components/ActivityList';
 import TutorProfileModal from './components/TutorProfileModal';
-import AccountScreen from './components/AccountScreen'; // Import AccountScreen
+import AccountScreen from './components/AccountScreen';
+import HomeScreen from './components/HomeScreen'; 
+import CareerScreen from './components/CareerScreen';
 import { matchTutors } from './services/geminiService';
+
+// Default initial state if no local storage exists
+const DEFAULT_PROFILE: UserProfile = {
+  name: 'Nguyễn Văn Học',
+  avatar: 'https://picsum.photos/200/200?random=99',
+  school: 'Đại học Bách Khoa HN',
+  year: 'Sinh viên năm 3',
+  studentId: '20215566',
+  dob: '01/01/2003',
+  balance: 2500000,
+  isPro: false,
+  uniqueCode: 'TC' + Math.floor(100000 + Math.random() * 900000),
+  grades: [
+    { id: '1', subjectName: 'Giải tích 1', scoreNumber: '9.0', scoreLetter: 'A+' }
+  ],
+  schoolSchedule: [
+      { id: 'sc1', subject: 'Giải tích 3', day: 'Thứ 2', startTime: '06:45', endTime: '09:20', room: 'D9-501', startDate: '15/09/2024', endDate: '15/01/2025' }
+  ]
+};
 
 const App: React.FC = () => {
   // Navigation State
   const [view, setView] = useState<ViewState>(ViewState.AUTH);
   
-  // Data State
+  // Data State - Initialize from LocalStorage
   const [tutors, setTutors] = useState<Tutor[]>(MOCK_TUTORS);
-  const [bookings, setBookings] = useState<Booking[]>([]); // Store bookings locally
   
-  // User Profile State (Lifted from AccountScreen to persist)
-  const [userProfile, setUserProfile] = useState<UserProfile>({
-    name: 'Nguyễn Văn Học',
-    avatar: 'https://picsum.photos/200/200?random=99',
-    school: 'Đại học Bách Khoa HN',
-    year: 'Sinh viên năm 3',
-    studentId: '20215566',
-    dob: '01/01/2003',
-    balance: 2500000,
-    isPro: false,
-    uniqueCode: 'TC' + Math.floor(100000 + Math.random() * 900000),
-    grades: [
-      { id: '1', subjectName: 'Giải tích 1', scoreNumber: '9.0', scoreLetter: 'A+' }
-    ]
+  const [bookings, setBookings] = useState<Booking[]>(() => {
+    try {
+      const saved = localStorage.getItem('tutorConnect_bookings');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Error loading bookings", e);
+      return [];
+    }
   });
+
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    try {
+      const saved = localStorage.getItem('tutorConnect_user');
+      return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
+    } catch (e) {
+      console.error("Error loading profile", e);
+      return DEFAULT_PROFILE;
+    }
+  });
+  
+  // Simulation State
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [showDemoControls, setShowDemoControls] = useState(true);
 
   // Selection State
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<Tutor | null>(null);
   const [selectedTutorForBooking, setSelectedTutorForBooking] = useState<Tutor | null>(null);
   
+  // Booking Edit State
+  const [bookingToEdit, setBookingToEdit] = useState<Booking | null>(null);
+
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   
   // UI State
   const [showChat, setShowChat] = useState(false);
+
+  // --- Persistence Effects ---
+  useEffect(() => {
+    localStorage.setItem('tutorConnect_user', JSON.stringify(userProfile));
+  }, [userProfile]);
+
+  useEffect(() => {
+    localStorage.setItem('tutorConnect_bookings', JSON.stringify(bookings));
+  }, [bookings]);
+
+  // --- Clock Effect ---
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(prev => new Date(prev.getTime() + 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // --- Actions ---
 
@@ -55,6 +103,21 @@ const App: React.FC = () => {
     setView(ViewState.AUTH);
   };
 
+  // Demo: Jump time to next booking
+  const jumpToNextClass = () => {
+    const nextBooking = bookings
+      .filter(b => new Date(b.time) > currentTime)
+      .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())[0];
+    
+    if (nextBooking) {
+      const start = new Date(nextBooking.time);
+      setCurrentTime(start); // Jump exactly to start time
+      alert(`Đã chỉnh thời gian đến giờ học môn ${nextBooking.subject}!`);
+    } else {
+      alert("Không có lịch học sắp tới để nhảy đến.");
+    }
+  };
+
   const handleSearch = async () => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) {
@@ -63,44 +126,27 @@ const App: React.FC = () => {
     }
 
     setIsSearching(true);
-    
     try {
-      // 1. First, try simple client-side filtering (Robust Fallback)
-      // Checks names, subjects, school, and even transcript subjects
       const localMatches = MOCK_TUTORS.filter(t => 
         t.name.toLowerCase().includes(query) ||
         t.subjects.some(s => s.toLowerCase().includes(query)) ||
         t.school.toLowerCase().includes(query) ||
         t.transcript.some(gr => gr.subject.toLowerCase().includes(query))
       );
-
-      // 2. Use AI to understand semantic matches (e.g., "Math" -> "Đại số", "Giải tích")
       const rankedIds = await matchTutors(query, MOCK_TUTORS);
-      
       let finalTutors: Tutor[] = [];
-
       if (rankedIds && rankedIds.length > 0) {
-         // If AI returns results, prioritize them
          const aiMatches = MOCK_TUTORS.filter(t => rankedIds.includes(t.id));
-         
-         // Sort AI matches by rank order
          aiMatches.sort((a, b) => rankedIds.indexOf(a.id) - rankedIds.indexOf(b.id));
-
-         // Combine AI matches with local matches that AI might have missed (deduplicate)
          const aiIds = new Set(aiMatches.map(t => t.id));
          const uniqueLocalMatches = localMatches.filter(t => !aiIds.has(t.id));
-         
          finalTutors = [...aiMatches, ...uniqueLocalMatches];
       } else {
-         // If AI fails or finds nothing, use local matches
          finalTutors = localMatches;
       }
-
       setTutors(finalTutors);
-
     } catch (e) {
       console.error("Search failed", e);
-      // Fallback to local
       const localMatches = MOCK_TUTORS.filter(t => 
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.subjects.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -121,14 +167,40 @@ const App: React.FC = () => {
 
   const openBookingFromProfile = () => {
     const tutor = selectedTutorForProfile;
-    setSelectedTutorForProfile(null); // Close profile
-    setSelectedTutorForBooking(tutor); // Open booking
+    setSelectedTutorForProfile(null);
+    setSelectedTutorForBooking(tutor);
   };
 
   const handleBookingConfirm = (bookingData: {subject: string, time: string, note: string}) => {
+    // If editing existing booking
+    if (bookingToEdit) {
+        setBookings(prev => prev.map(b => 
+            b.id === bookingToEdit.id ? { ...b, ...bookingData } : b
+        ));
+        setBookingToEdit(null);
+        alert("Đã cập nhật lịch học!");
+        return;
+    }
+
     if (!selectedTutorForBooking) return;
 
-    // Create new booking object
+    // Calculate Cost (Assuming 1 hour session for simplicity)
+    const cost = selectedTutorForBooking.hourlyRate;
+
+    // Check Balance
+    if (userProfile.balance < cost) {
+      alert("Số dư tài khoản không đủ. Vui lòng nạp thêm tiền!");
+      setSelectedTutorForBooking(null);
+      setView(ViewState.ACCOUNT); // Should ideally go straight to DEPOSIT view inside Account, but this switches tab
+      return;
+    }
+
+    // Deduct Money
+    setUserProfile(prev => ({
+      ...prev,
+      balance: prev.balance - cost
+    }));
+
     const newBooking: Booking = {
       id: Date.now().toString(),
       tutor: selectedTutorForBooking,
@@ -136,23 +208,43 @@ const App: React.FC = () => {
       time: bookingData.time,
       note: bookingData.note,
       status: BookingStatus.PENDING,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      cost: cost,
+      meetLink: "https://meet.google.com/abc-defg-hij" // Mock link
     };
 
-    // Simulate API delay
     setTimeout(() => {
       setBookings(prev => [...prev, newBooking]);
-      
-      // Auto confirm for demo after 3 seconds
       setTimeout(() => {
         setBookings(current => current.map(b => 
           b.id === newBooking.id ? {...b, status: BookingStatus.CONFIRMED} : b
         ));
-      }, 5000);
-
+      }, 2000);
       setSelectedTutorForBooking(null);
       setView(ViewState.BOOKING_SUCCESS);
     }, 1000);
+  };
+
+  const handleCancelBooking = (bookingId: string) => {
+      if(!window.confirm("Bạn có chắc muốn hủy lịch học này? Tiền sẽ được hoàn lại.")) return;
+      
+      const booking = bookings.find(b => b.id === bookingId);
+      if(booking) {
+          // Refund
+          setUserProfile(prev => ({ ...prev, balance: prev.balance + booking.cost }));
+          // Update status
+          setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: BookingStatus.CANCELLED } : b));
+      }
+  };
+
+  const handleEditBooking = (booking: Booking) => {
+      setBookingToEdit(booking);
+      // We need to 'fake' select a tutor so the modal opens, but logic will handle it as an edit
+      setSelectedTutorForBooking(booking.tutor);
+  };
+
+  const handleUpdateSchoolSchedule = (newSchedule: SchoolScheduleItem[]) => {
+      setUserProfile(prev => ({...prev, schoolSchedule: newSchedule}));
   };
 
   // --- RENDER HELPERS ---
@@ -161,17 +253,71 @@ const App: React.FC = () => {
     return <AuthScreen onLogin={handleLogin} />;
   }
 
+  const renderBottomNav = () => (
+    <div className="absolute bottom-0 w-full bg-white border-t border-gray-100 py-2 px-1 flex justify-between items-center z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <button 
+        onClick={() => setView(ViewState.HOME)}
+        className={`flex flex-col items-center w-1/5 transition-colors ${view === ViewState.HOME ? 'text-primary' : 'text-gray-400'}`}
+      >
+        <span className="text-xl mb-0.5">🏠</span>
+        <span className="text-[9px] font-bold">Trang chủ</span>
+      </button>
+
+      <button 
+        onClick={() => setView(ViewState.SEARCH)}
+        className={`flex flex-col items-center w-1/5 transition-colors ${view === ViewState.SEARCH ? 'text-primary' : 'text-gray-400'}`}
+      >
+        <span className="text-xl mb-0.5">🔍</span>
+        <span className="text-[9px] font-bold">Tìm gia sư</span>
+      </button>
+
+      <button 
+        onClick={() => setView(ViewState.CAREER)}
+        className={`flex flex-col items-center w-1/5 transition-colors ${view === ViewState.CAREER ? 'text-primary' : 'text-gray-400'}`}
+      >
+        <span className="text-xl mb-0.5">✨</span>
+        <span className="text-[9px] font-bold">Hướng nghiệp</span>
+      </button>
+      
+      <button 
+        onClick={() => setView(ViewState.ACTIVITY)}
+        className={`flex flex-col items-center w-1/5 transition-colors ${view === ViewState.ACTIVITY ? 'text-primary' : 'text-gray-400'}`}
+      >
+         <span className="text-xl mb-0.5">📅</span>
+        <span className="text-[9px] font-bold">Hoạt động</span>
+      </button>
+      
+      <button 
+        onClick={() => setView(ViewState.ACCOUNT)}
+        className={`flex flex-col items-center w-1/5 transition-colors ${view === ViewState.ACCOUNT ? 'text-primary' : 'text-gray-400'}`}
+      >
+        <span className="text-xl mb-0.5">👤</span>
+        <span className="text-[9px] font-bold">Tài khoản</span>
+      </button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center font-sans text-gray-900">
       <div className="w-full max-w-md bg-white min-h-screen shadow-2xl relative overflow-hidden flex flex-col">
         
-        {/* === HEADER (Only on Home) === */}
-        {view === ViewState.HOME && (
+        {/* Floating Demo Time Control */}
+        {showDemoControls && (
+          <div className="absolute top-24 right-4 z-30 bg-black/70 text-white p-2 rounded-lg text-xs backdrop-blur-sm">
+            <div className="font-mono mb-1">{currentTime.toLocaleTimeString()}</div>
+            <button onClick={jumpToNextClass} className="bg-primary px-2 py-1 rounded hover:bg-green-600">
+              ⏩ Đến giờ học
+            </button>
+          </div>
+        )}
+
+        {/* === HEADER (For Search Tab) === */}
+        {view === ViewState.SEARCH && (
           <div className="bg-primary pt-12 pb-6 px-6 rounded-b-3xl shadow-lg z-10 shrink-0">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h1 className="text-white text-2xl font-bold">TutorConnect</h1>
-                <p className="text-green-100 text-sm">Gia sư Đại Học uy tín</p>
+                <h1 className="text-white text-2xl font-bold">Tìm Gia Sư</h1>
+                <p className="text-green-100 text-sm">Kết nối tri thức</p>
               </div>
               <div 
                 className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
@@ -205,8 +351,23 @@ const App: React.FC = () => {
         {/* === MAIN CONTENT AREA === */}
         <div className="flex-1 overflow-y-auto no-scrollbar bg-gray-50">
           
-          {/* HOME VIEW */}
+          {/* NEW HOME DASHBOARD */}
           {view === ViewState.HOME && (
+             <HomeScreen 
+               userProfile={userProfile} 
+               bookings={bookings} 
+               currentTime={currentTime}
+               onChangeTab={(idx) => {
+                 if(idx === 1) setView(ViewState.SEARCH);
+                 if(idx === 2) setView(ViewState.CAREER); // Not used currently in home, but logic holds
+                 if(idx === 3) setView(ViewState.ACTIVITY);
+               }} 
+               onUpdateSchedule={handleUpdateSchoolSchedule}
+             />
+          )}
+
+          {/* SEARCH VIEW (Old Home) */}
+          {view === ViewState.SEARCH && (
             <div className="p-4 pb-24">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-bold text-gray-800 text-lg">Gia sư gợi ý</h2>
@@ -247,13 +408,23 @@ const App: React.FC = () => {
             </div>
           )}
 
+          {/* CAREER VIEW */}
+          {view === ViewState.CAREER && (
+              <CareerScreen userProfile={userProfile} />
+          )}
+
           {/* ACTIVITY VIEW */}
           {view === ViewState.ACTIVITY && (
             <div className="pt-12">
                <div className="px-4 pb-4 border-b border-gray-100 bg-white sticky top-0 z-10">
-                 <h1 className="text-2xl font-bold text-gray-800 pt-4">Lịch sử</h1>
+                 <h1 className="text-2xl font-bold text-gray-800 pt-4">Lịch sử & Lớp học</h1>
                </div>
-               <ActivityList bookings={bookings} />
+               <ActivityList 
+                 bookings={bookings} 
+                 currentTime={currentTime} 
+                 onCancelBooking={handleCancelBooking}
+                 onEditBooking={handleEditBooking}
+               />
             </div>
           )}
 
@@ -295,39 +466,7 @@ const App: React.FC = () => {
         </div>
 
         {/* === BOTTOM NAVIGATION === */}
-        {view !== ViewState.BOOKING_SUCCESS && (
-          <div className="absolute bottom-0 w-full bg-white border-t border-gray-100 py-2 px-6 flex justify-between items-center z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            <button 
-              onClick={() => setView(ViewState.HOME)}
-              className={`flex flex-col items-center w-16 transition-colors ${view === ViewState.HOME ? 'text-primary' : 'text-gray-400'}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-              </svg>
-              <span className="text-[10px] font-bold">Trang chủ</span>
-            </button>
-            
-            <button 
-              onClick={() => setView(ViewState.ACTIVITY)}
-              className={`flex flex-col items-center w-16 transition-colors ${view === ViewState.ACTIVITY ? 'text-primary' : 'text-gray-400'}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-              </svg>
-              <span className="text-[10px] font-bold">Hoạt động</span>
-            </button>
-            
-            <button 
-              onClick={() => setView(ViewState.ACCOUNT)}
-              className={`flex flex-col items-center w-16 transition-colors ${view === ViewState.ACCOUNT ? 'text-primary' : 'text-gray-400'}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="text-[10px] font-bold">Tài khoản</span>
-            </button>
-          </div>
-        )}
+        {view !== ViewState.BOOKING_SUCCESS && renderBottomNav()}
 
         {/* === MODALS === */}
         {selectedTutorForProfile && (
@@ -341,7 +480,10 @@ const App: React.FC = () => {
         {selectedTutorForBooking && (
             <BookingModal
                 tutor={selectedTutorForBooking}
-                onClose={() => setSelectedTutorForBooking(null)}
+                onClose={() => {
+                    setSelectedTutorForBooking(null);
+                    setBookingToEdit(null);
+                }}
                 onConfirmData={(data) => handleBookingConfirm(data)} 
             />
         )}

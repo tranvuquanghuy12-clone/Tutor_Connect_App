@@ -15,10 +15,11 @@ const TutorProfileModal: React.FC<TutorProfileModalProps> = ({ tutor, onClose, o
       {/* Click outside to close */}
       <div className="absolute inset-0" onClick={onClose}></div>
       
-      <div className="bg-white w-full max-w-md h-[85vh] sm:h-auto rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up flex flex-col relative z-50">
+      {/* Modal Container: Max height constrained to 85vh to ensure it fits on mobile */}
+      <div className="bg-white w-full max-w-md max-h-[85vh] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up flex flex-col relative z-50">
         
-        {/* Header Image/Banner */}
-        <div className="h-32 bg-gradient-to-r from-green-400 to-primary rounded-t-2xl relative">
+        {/* Header Image/Banner - Fixed at top */}
+        <div className="h-32 bg-gradient-to-r from-green-400 to-primary rounded-t-2xl shrink-0 relative">
           <button 
             onClick={onClose}
             className="absolute top-4 right-4 bg-black/20 text-white p-2 rounded-full hover:bg-black/40"
@@ -29,8 +30,8 @@ const TutorProfileModal: React.FC<TutorProfileModalProps> = ({ tutor, onClose, o
           </button>
         </div>
 
-        {/* Content */}
-        <div className="px-6 flex-1 overflow-y-auto no-scrollbar -mt-12 relative">
+        {/* Scrollable Content Area */}
+        <div className="px-6 flex-1 overflow-y-auto no-scrollbar -mt-12 relative pb-4">
           {/* Avatar & Basic Info */}
           <div className="flex justify-between items-end mb-4">
              <img 
@@ -55,10 +56,6 @@ const TutorProfileModal: React.FC<TutorProfileModalProps> = ({ tutor, onClose, o
             >
               <div className="text-xl font-bold text-primary">{tutor.gpa}<span className="text-sm text-green-600/60">/4.0</span></div>
               <div className="text-xs text-green-600 uppercase tracking-wide font-semibold">GPA (Xem)</div>
-              {/* Tooltip hint */}
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                Bấm để xem điểm
-              </div>
             </div>
             
             <div className="flex-1 bg-gray-50 p-3 rounded-xl text-center border border-gray-100">
@@ -71,13 +68,13 @@ const TutorProfileModal: React.FC<TutorProfileModalProps> = ({ tutor, onClose, o
             </div>
           </div>
 
-          {/* Transcript Dropdown */}
+          {/* Transcript Dropdown - Scrollable internally if too long */}
           {showTranscript && (
             <div className="mb-6 bg-white border border-gray-200 rounded-xl p-4 shadow-sm animate-fade-in">
               <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
                 <span className="text-xl">📜</span> Bảng điểm chi tiết
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                 {tutor.transcript.map((grade, idx) => (
                   <div key={idx} className="flex justify-between items-center text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
                     <span className="text-gray-600">{grade.subject}</span>
@@ -110,8 +107,8 @@ const TutorProfileModal: React.FC<TutorProfileModalProps> = ({ tutor, onClose, o
           </div>
         </div>
 
-        {/* Footer Action */}
-        <div className="p-4 border-t border-gray-100 bg-white rounded-b-2xl">
+        {/* Footer Action - Fixed at bottom */}
+        <div className="p-4 border-t border-gray-100 bg-white rounded-b-2xl shrink-0">
           <button 
             onClick={onBook}
             className="w-full bg-primary text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-green-600 active:scale-95 transition-all"

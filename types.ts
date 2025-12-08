@@ -21,7 +21,9 @@ export interface Tutor {
 
 export enum ViewState {
   AUTH = 'AUTH',
-  HOME = 'HOME',
+  HOME = 'HOME', // New Dashboard
+  SEARCH = 'SEARCH', // Old Home (Tutor Search)
+  CAREER = 'CAREER', // New AI Career Guidance
   ACTIVITY = 'ACTIVITY',
   ACCOUNT = 'ACCOUNT',
   BOOKING_SUCCESS = 'BOOKING_SUCCESS'
@@ -38,10 +40,12 @@ export interface Booking {
   id: string;
   tutor: Tutor;
   subject: string;
-  time: string; // ISO string or display string
+  time: string; // ISO string
   note: string;
   status: BookingStatus;
   timestamp: number;
+  cost: number;
+  meetLink?: string;
 }
 
 export interface UserGrade {
@@ -49,6 +53,17 @@ export interface UserGrade {
   subjectName: string;
   scoreNumber: string; // e.g. "8.5"
   scoreLetter: string; // e.g. "A"
+}
+
+export interface SchoolScheduleItem {
+  id: string;
+  subject: string;
+  day: string; // "Thứ 2", "Thứ 3", etc.
+  startTime: string; // "07:00"
+  endTime: string; // "09:00"
+  room: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface UserProfile {
@@ -62,4 +77,5 @@ export interface UserProfile {
   isPro: boolean;
   uniqueCode: string; // For deposit
   grades: UserGrade[];
+  schoolSchedule: SchoolScheduleItem[];
 }

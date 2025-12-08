@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile, UserGrade } from '../types';
 
 interface AccountScreenProps {
@@ -29,9 +29,32 @@ const InfoView: React.FC<{
   onBack: () => void 
 }> = ({ userProfile, onUpdateProfile, onBack }) => {
   const [activeTab, setActiveTab] = useState<'PERSONAL' | 'GRADES'>('PERSONAL');
+  
+  // Edit State
+  const [formData, setFormData] = useState({
+    name: userProfile.name,
+    dob: userProfile.dob,
+    studentId: userProfile.studentId,
+    school: userProfile.school,
+    year: userProfile.year
+  });
+
   const [newSubject, setNewSubject] = useState('');
   const [newScoreNum, setNewScoreNum] = useState('');
   const [newScoreLet, setNewScoreLet] = useState('');
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveProfile = () => {
+    onUpdateProfile({
+      ...userProfile,
+      ...formData
+    });
+    alert("Đã lưu thông tin thành công!");
+  };
 
   const handleAddGrade = () => {
     if (!newSubject || !newScoreNum) return;
@@ -69,29 +92,64 @@ const InfoView: React.FC<{
       <div className="p-4 flex-1 overflow-y-auto">
         {activeTab === 'PERSONAL' ? (
           <div className="space-y-4">
-             <div className="bg-white p-4 rounded-xl shadow-sm space-y-3">
+             <div className="bg-white p-4 rounded-xl shadow-sm space-y-4">
                <div>
-                 <label className="text-xs text-gray-400">Họ và tên</label>
-                 <p className="font-medium text-gray-800">{userProfile.name}</p>
+                 <label className="text-xs text-gray-500 font-bold mb-1 block">Họ và tên</label>
+                 <input 
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 font-medium outline-none focus:border-primary"
+                 />
                </div>
                <div>
-                 <label className="text-xs text-gray-400">Ngày sinh</label>
-                 <p className="font-medium text-gray-800">{userProfile.dob}</p>
+                 <label className="text-xs text-gray-500 font-bold mb-1 block">Ngày sinh</label>
+                 <input 
+                    type="text"
+                    name="dob"
+                    value={formData.dob}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 font-medium outline-none focus:border-primary"
+                 />
                </div>
                <div>
-                 <label className="text-xs text-gray-400">Mã sinh viên</label>
-                 <p className="font-medium text-gray-800">{userProfile.studentId}</p>
+                 <label className="text-xs text-gray-500 font-bold mb-1 block">Mã sinh viên</label>
+                 <input 
+                    type="text"
+                    name="studentId"
+                    value={formData.studentId}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 font-medium outline-none focus:border-primary"
+                 />
                </div>
                <div>
-                 <label className="text-xs text-gray-400">Trường</label>
-                 <p className="font-medium text-gray-800">{userProfile.school}</p>
+                 <label className="text-xs text-gray-500 font-bold mb-1 block">Trường</label>
+                 <input 
+                    type="text"
+                    name="school"
+                    value={formData.school}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 font-medium outline-none focus:border-primary"
+                 />
                </div>
                <div>
-                 <label className="text-xs text-gray-400">Niên khóa</label>
-                 <p className="font-medium text-gray-800">{userProfile.year}</p>
+                 <label className="text-xs text-gray-500 font-bold mb-1 block">Niên khóa</label>
+                 <input 
+                    type="text"
+                    name="year"
+                    value={formData.year}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 font-medium outline-none focus:border-primary"
+                 />
                </div>
              </div>
-             <button className="w-full text-primary font-bold text-sm bg-white p-3 rounded-xl border border-primary/20">Chỉnh sửa thông tin</button>
+             <button 
+              onClick={handleSaveProfile}
+              className="w-full bg-primary text-white font-bold text-sm p-3 rounded-xl shadow-lg hover:bg-green-600 active:scale-95 transition-all"
+             >
+               Lưu thay đổi
+             </button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -232,22 +290,22 @@ const ProView: React.FC<{
       onNavigateDeposit();
       return;
     }
-    if (window.confirm("Xác nhận nâng cấp Pro với giá 39.000đ/tháng?")) {
-      onUpdateProfile({
+    // Perform upgrade
+    const newBalance = userProfile.balance - 39000;
+    onUpdateProfile({
         ...userProfile,
-        balance: userProfile.balance - 39000,
+        balance: newBalance,
         isPro: true
-      });
-      alert("Chúc mừng! Bạn đã trở thành thành viên Pro.");
-      onBack();
-    }
+    });
+    alert(`Chúc mừng! Bạn đã nâng cấp Pro thành công.\nSố dư mới: ${newBalance.toLocaleString()}đ`);
+    onBack();
   };
 
   return (
     <div className="flex flex-col h-full bg-gray-50 animate-slide-up">
       <SubScreenHeader title="Nâng cấp Pro" onBack={onBack} />
-      <div className="p-4 flex flex-col items-center">
-         <div className="w-24 h-24 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full flex items-center justify-center text-4xl shadow-lg mb-6">
+      <div className="p-4 flex flex-col items-center flex-1 overflow-y-auto">
+         <div className="w-24 h-24 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full flex items-center justify-center text-4xl shadow-lg mb-6 shrink-0">
            👑
          </div>
          <h2 className="text-2xl font-bold text-gray-800 text-center mb-2">TutorConnect Pro</h2>
@@ -284,7 +342,7 @@ const ProView: React.FC<{
          ) : (
            <button 
              onClick={handleUpgrade}
-             className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all"
+             className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all mb-4"
            >
              Nâng cấp ngay
            </button>
